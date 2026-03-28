@@ -2283,358 +2283,661 @@ function SpeedQuizGame({onBack, onScore}) {
   );
 }
 
-// ═══════════════ PUNJAB YATRA - Board Game ═══════════════
+// ═══════════════ PUNJAB EXPRESS - Train Journey Game ═══════════════
 function PunjabYatraGame({onBack, onScore}) {
-  const [position, setPosition] = useState(0);
-  const [diceValue, setDiceValue] = useState(null);
-  const [isRolling, setIsRolling] = useState(false);
+  const [station, setStation] = useState(0);
+  const [stars, setStars] = useState(0);
+  const [currentQ, setCurrentQ] = useState(null);
   const [gameOver, setGameOver] = useState(false);
-  const [score, setScore] = useState(0);
-  const [moves, setMoves] = useState(0);
-  const [message, setMessage] = useState(null);
-  const [showInfo, setShowInfo] = useState(null);
   const [started, setStarted] = useState(false);
+  const [trainPos, setTrainPos] = useState(0);
+  const [showCelebrate, setShowCelebrate] = useState(false);
+  const [wrongAnswer, setWrongAnswer] = useState(false);
   const scoreRef = useRef(0);
 
-  useEffect(() => { scoreRef.current = score; }, [score]);
+  // Kid-friendly Punjab stations with fun facts
+  const STATIONS = [
+    { name: 'ਅੰਮ੍ਰਿਤਸਰ', english: 'Amritsar', emoji: '🛕', fact: 'Home of the beautiful Golden Temple!', color: '#FFD700' },
+    { name: 'ਲੁਧਿਆਣਾ', english: 'Ludhiana', emoji: '🧶', fact: 'Makes the softest sweaters in India!', color: '#FF6B6B' },
+    { name: 'ਚੰਡੀਗੜ੍ਹ', english: 'Chandigarh', emoji: '🌳', fact: 'The City Beautiful with lovely gardens!', color: '#4CD964' },
+    { name: 'ਮੋਹਾਲੀ', english: 'Mohali', emoji: '🏏', fact: 'Watch exciting cricket matches here!', color: '#5AC8FA' },
+    { name: 'ਪਟਿਆਲਾ', english: 'Patiala', emoji: '👟', fact: 'Famous for comfy Patiala shoes!', color: '#AF52DE' },
+  ];
 
-  // Punjab landmarks and places for the board
-  const LANDMARKS = {
-    5: { name: 'ਹਰਿਮੰਦਰ ਸਾਹਿਬ', english: 'Golden Temple', emoji: '🛕', desc: 'The holiest Sikh shrine in Amritsar!', bonus: 4, color: '#FFD700' },
-    12: { name: 'ਵਾਘਾ ਬਾਰਡਰ', english: 'Wagah Border', emoji: '🇮🇳', desc: 'Famous border ceremony every evening!', bonus: 3, color: '#FF9500' },
-    18: { name: 'ਪਟਿਆਲਾ', english: 'Patiala', emoji: '👑', desc: 'City of royalty and Patiala peg!', bonus: 5, color: '#AF52DE' },
-    25: { name: 'ਜਲੰਧਰ', english: 'Jalandhar', emoji: '⚽', desc: 'Sports capital of India!', bonus: 3, color: '#34C759' },
-    8: { name: 'ਲੱਸੀ ਬ੍ਰੇਕ', english: 'Lassi Break', emoji: '🥛', desc: 'Refreshing Punjabi lassi! Move ahead!', bonus: 2, color: '#5AC8FA' },
-    22: { name: 'ਭੰਗੜਾ ਟਾਈਮ', english: 'Bhangra Time', emoji: '💃', desc: 'Dance your way forward!', bonus: 3, color: '#FF2D55' },
-  };
+  useEffect(() => { scoreRef.current = stars * 20; }, [stars]);
 
-  // Setbacks (like snakes)
-  const SETBACKS = {
-    10: { name: 'ਟ੍ਰੈਕਟਰ ਪੰਕਚਰ', english: 'Tractor Puncture', emoji: '🚜', desc: 'Oh no! Flat tire. Go back!', penalty: -3, color: '#8E8E93' },
-    16: { name: 'ਮੀਂਹ ਪੈ ਗਿਆ', english: 'Heavy Rain', emoji: '🌧️', desc: 'Monsoon rain! Wait a turn.', penalty: -2, color: '#636e72' },
-    24: { name: 'ਟ੍ਰੈਫਿਕ ਜਾਮ', english: 'Traffic Jam', emoji: '🚗', desc: 'Stuck in Chandigarh traffic!', penalty: -4, color: '#E74C3C' },
-  };
+  // Generate question for current station
+  const generateQuestion = useCallback(() => {
+    const stationData = STATIONS[station];
+    const letter = L[Math.floor(Math.random() * L.length)];
+    const wrongLetters = shuffle(L.filter(l => l.g !== letter.g)).slice(0, 3);
+    const options = shuffle([letter, ...wrongLetters]);
 
-  // Board squares with Punjabi letters
-  const BOARD_SIZE = 30;
-  const boardSquares = Array.from({ length: BOARD_SIZE }, (_, i) => {
-    const squareNum = i + 1;
-    if (LANDMARKS[squareNum]) {
-      return { num: squareNum, type: 'landmark', ...LANDMARKS[squareNum] };
+    setCurrentQ({
+      type: 'letter',
+      letter: letter,
+      options: options,
+      station: stationData,
+    });
+    say(letter.g);
+  }, [station]);
+
+  useEffect(() => {
+    if (started && !gameOver && !currentQ) {
+      generateQuestion();
     }
-    if (SETBACKS[squareNum]) {
-      return { num: squareNum, type: 'setback', ...SETBACKS[squareNum] };
-    }
-    // Regular square with Punjabi letter
-    const letter = L[i % L.length];
-    return { num: squareNum, type: 'letter', letter, color: '#fff' };
-  });
+  }, [started, gameOver, currentQ, generateQuestion]);
 
-  const rollDice = () => {
-    if (isRolling || gameOver) return;
-    setIsRolling(true);
-    setMessage(null);
-    setShowInfo(null);
+  const handleAnswer = (opt) => {
+    if (!currentQ) return;
 
-    // Animate dice roll
-    let rollCount = 0;
-    const rollInterval = setInterval(() => {
-      setDiceValue(Math.floor(Math.random() * 6) + 1);
-      rollCount++;
-      if (rollCount >= 10) {
-        clearInterval(rollInterval);
-        const finalValue = Math.floor(Math.random() * 6) + 1;
-        setDiceValue(finalValue);
-        movePlayer(finalValue);
-        setIsRolling(false);
-      }
-    }, 100);
-  };
+    if (opt.g === currentQ.letter.g) {
+      playSuccess();
+      setStars(s => s + 1);
+      setShowCelebrate(true);
+      setTrainPos(p => p + 1);
 
-  const movePlayer = (steps) => {
-    setMoves(m => m + 1);
-    const newPos = Math.min(position + steps, BOARD_SIZE);
-
-    // Animate movement
-    let currentPos = position;
-    const moveInterval = setInterval(() => {
-      currentPos++;
-      if (currentPos > newPos) {
-        clearInterval(moveInterval);
-        handleSquareLanding(newPos);
-        return;
-      }
-      setPosition(currentPos);
-      // Play sound for each step
-      if (boardSquares[currentPos - 1]?.letter) {
-        say(boardSquares[currentPos - 1].letter.g);
-      }
-    }, 300);
-  };
-
-  const handleSquareLanding = (pos) => {
-    const square = boardSquares[pos - 1];
-
-    if (pos >= BOARD_SIZE) {
-      // Won the game!
-      const finalScore = Math.max(50, 200 - moves * 5) + score;
-      setScore(finalScore);
       setTimeout(() => {
-        setGameOver(true);
-        onScore?.(finalScore);
-      }, 500);
-      return;
-    }
-
-    if (square.type === 'landmark') {
-      setShowInfo(square);
-      setMessage(`🎉 ${square.english}! +${square.bonus} squares!`);
-      setScore(s => s + square.bonus * 10);
-      setTimeout(() => {
-        const newPos = Math.min(pos + square.bonus, BOARD_SIZE);
-        setPosition(newPos);
-        if (newPos >= BOARD_SIZE) {
-          const finalScore = Math.max(50, 200 - moves * 5) + score + square.bonus * 10;
-          setScore(finalScore);
-          setTimeout(() => {
-            setGameOver(true);
-            onScore?.(finalScore);
-          }, 500);
+        setShowCelebrate(false);
+        if (station >= STATIONS.length - 1) {
+          // Won the game!
+          setGameOver(true);
+          onScore?.(stars * 20 + 100);
+        } else {
+          setStation(s => s + 1);
+          setCurrentQ(null);
         }
       }, 1500);
-    } else if (square.type === 'setback') {
-      setShowInfo(square);
-      setMessage(`😅 ${square.english}! ${square.penalty} squares`);
-      setTimeout(() => {
-        const newPos = Math.max(1, pos + square.penalty);
-        setPosition(newPos);
-      }, 1500);
-    } else if (square.letter) {
-      say(square.letter.g);
-      setScore(s => s + 5);
+    } else {
+      setWrongAnswer(true);
+      setTimeout(() => setWrongAnswer(false), 500);
     }
   };
 
   const restartGame = () => {
-    setPosition(0);
-    setDiceValue(null);
-    setScore(0);
-    setMoves(0);
+    setStation(0);
+    setStars(0);
+    setCurrentQ(null);
     setGameOver(false);
-    setMessage(null);
-    setShowInfo(null);
+    setTrainPos(0);
     setStarted(true);
   };
 
   // Start screen
   if (!started && !gameOver) {
     return (
-      <div style={{textAlign:'center',padding:40,minHeight:'80vh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background:'linear-gradient(180deg,#FF9500 0%,#FF6B35 50%,#FFD700 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
-        {/* Decorative elements */}
-        <div style={{position:'absolute',top:'8%',left:'10%',fontSize:50,animation:'float 3s ease-in-out infinite'}}>🛕</div>
-        <div style={{position:'absolute',top:'15%',right:'8%',fontSize:45,animation:'float 2.5s ease-in-out infinite',animationDelay:'-1s'}}>🌾</div>
-        <div style={{position:'absolute',bottom:'15%',left:'12%',fontSize:40,animation:'float 2.8s ease-in-out infinite',animationDelay:'-0.5s'}}>🚜</div>
-        <div style={{position:'absolute',bottom:'20%',right:'10%',fontSize:50,animation:'float 3.2s ease-in-out infinite',animationDelay:'-1.5s'}}>💃</div>
+      <div style={{textAlign:'center',padding:30,minHeight:'100dvh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background:'linear-gradient(180deg,#87CEEB 0%,#98FB98 50%,#FFE4B5 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+        {/* Animated clouds */}
+        <div style={{position:'absolute',top:'5%',left:'5%',fontSize:60,opacity:0.6,animation:'drift 20s linear infinite'}}>☁️</div>
+        <div style={{position:'absolute',top:'10%',right:'10%',fontSize:50,opacity:0.5,animation:'drift 25s linear infinite',animationDelay:'-5s'}}>☁️</div>
 
-        <div style={{fontSize:100,marginBottom:20,animation:'bounce2 1s ease-in-out infinite'}}>🎲</div>
-        <h2 style={{fontSize:38,fontWeight:900,color:'#fff',textShadow:'0 4px 15px rgba(0,0,0,0.3)',marginBottom:10}}>ਪੰਜਾਬ ਯਾਤਰਾ</h2>
-        <h3 style={{fontSize:26,fontWeight:700,color:'rgba(255,255,255,0.95)',marginBottom:10}}>Punjab Journey!</h3>
-        <p style={{fontSize:18,color:'rgba(255,255,255,0.9)',margin:'16px 0',maxWidth:320}}>Roll the dice and travel through Punjab! Visit famous places and learn Punjabi letters! 🎯</p>
+        {/* Animated train */}
+        <div style={{fontSize:80,marginBottom:20,animation:'bounce2 1s ease-in-out infinite'}}>🚂</div>
 
-        <div style={{display:'flex',gap:12,flexWrap:'wrap',justifyContent:'center',margin:'20px 0'}}>
-          <div style={{background:'rgba(255,255,255,0.2)',padding:'8px 16px',borderRadius:20,color:'#fff',fontSize:14}}>🛕 Golden Temple</div>
-          <div style={{background:'rgba(255,255,255,0.2)',padding:'8px 16px',borderRadius:20,color:'#fff',fontSize:14}}>🇮🇳 Wagah Border</div>
-          <div style={{background:'rgba(255,255,255,0.2)',padding:'8px 16px',borderRadius:20,color:'#fff',fontSize:14}}>💃 Bhangra</div>
+        <h2 style={{fontFamily:G,fontSize:36,fontWeight:900,color:'#2d3436',marginBottom:8}}>ਪੰਜਾਬ ਐਕਸਪ੍ਰੈਸ</h2>
+        <h3 style={{fontSize:28,fontWeight:800,color:'#e17055',marginBottom:16}}>Punjab Express!</h3>
+
+        <p style={{fontSize:18,color:'#636e72',margin:'16px 0',maxWidth:320,lineHeight:1.5}}>
+          Ride the train through Punjab! 🚂<br/>
+          Answer questions to reach each station!
+        </p>
+
+        {/* Station preview */}
+        <div style={{display:'flex',gap:10,margin:'20px 0',flexWrap:'wrap',justifyContent:'center'}}>
+          {STATIONS.map((s, i) => (
+            <div key={i} style={{
+              background:'rgba(255,255,255,0.9)',
+              padding:'10px 16px',
+              borderRadius:20,
+              boxShadow:'0 4px 15px rgba(0,0,0,0.1)',
+            }}>
+              <span style={{fontSize:24}}>{s.emoji}</span>
+              <div style={{fontSize:11,fontWeight:700,color:'#666',marginTop:4}}>{s.english}</div>
+            </div>
+          ))}
         </div>
 
-        <button onClick={()=>setStarted(true)} style={{padding:'22px 55px',background:'#fff',color:'#FF6B35',border:'none',borderRadius:60,fontSize:26,fontWeight:900,cursor:'pointer',boxShadow:'0 10px 40px rgba(0,0,0,0.2)',marginTop:20}}>🎲 Start Journey!</button>
-        <button onClick={onBack} style={{marginTop:20,padding:'14px 28px',background:'rgba(255,255,255,0.2)',color:'#fff',border:'none',borderRadius:30,fontSize:18,cursor:'pointer'}}>← Back</button>
+        <button onClick={()=>setStarted(true)} style={{
+          padding:'20px 50px',
+          background:'linear-gradient(135deg,#e17055,#d63031)',
+          color:'#fff',
+          border:'none',
+          borderRadius:60,
+          fontSize:24,
+          fontWeight:900,
+          cursor:'pointer',
+          boxShadow:'0 10px 40px rgba(214,48,49,0.4)',
+          marginTop:20,
+          display:'flex',
+          alignItems:'center',
+          gap:12,
+        }}>
+          🚂 All Aboard!
+        </button>
+        <button onClick={onBack} style={{marginTop:20,padding:'14px 28px',background:'rgba(0,0,0,0.1)',color:'#636e72',border:'none',borderRadius:30,fontSize:18,cursor:'pointer',fontWeight:600}}>← Back</button>
       </div>
     );
   }
 
-  // Game over screen
+  // Game over - success!
   if (gameOver) {
-    const ladoosEarned = Math.floor(score / 10);
+    const ladoosEarned = Math.floor((stars * 20 + 100) / 10);
     return (
-      <div style={{textAlign:'center',padding:40,minHeight:'80vh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background:'linear-gradient(180deg,#FFD700 0%,#FF9500 50%,#FF6B35 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+      <div style={{textAlign:'center',padding:30,minHeight:'100dvh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background:'linear-gradient(180deg,#ffecd2 0%,#fcb69f 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+        {/* Confetti */}
         <div style={{position:'absolute',top:'10%',left:'10%',fontSize:50,animation:'bounce2 1s ease-in-out infinite'}}>🎉</div>
-        <div style={{position:'absolute',top:'15%',right:'10%',fontSize:45,animation:'bounce2 1.2s ease-in-out infinite'}}>🛕</div>
-        <div style={{position:'absolute',bottom:'20%',left:'15%',fontSize:40,animation:'bounce2 0.9s ease-in-out infinite'}}>💃</div>
+        <div style={{position:'absolute',top:'15%',right:'10%',fontSize:45,animation:'bounce2 1.2s ease-in-out infinite'}}>🌟</div>
+        <div style={{position:'absolute',bottom:'20%',left:'15%',fontSize:40,animation:'bounce2 0.9s ease-in-out infinite'}}>✨</div>
+        <div style={{position:'absolute',bottom:'25%',right:'15%',fontSize:55,animation:'bounce2 1.1s ease-in-out infinite'}}>🎊</div>
 
         <div style={{fontSize:100,marginBottom:20,animation:'bounce2 1s ease-in-out infinite'}}>🏆</div>
-        <h2 style={{fontSize:36,fontWeight:900,color:'#fff',textShadow:'0 4px 15px rgba(0,0,0,0.3)'}}>Journey Complete!</h2>
-        <p style={{fontSize:20,color:'rgba(255,255,255,0.9)',margin:'12px 0'}}>You explored Punjab in {moves} moves!</p>
-        <div style={{fontSize:50,fontWeight:900,color:'#fff',margin:'20px 0',textShadow:'0 4px 20px rgba(0,0,0,0.3)'}}>🟡 {score}</div>
-        <div style={{fontSize:22,color:'rgba(255,255,255,0.95)',marginBottom:8,fontWeight:700}}>+{ladoosEarned} Ladoos! 🍬</div>
-        <div style={{display:'flex',gap:16,marginTop:28}}>
-          <button onClick={restartGame} style={{padding:'18px 40px',background:'#fff',color:'#FF6B35',border:'none',borderRadius:50,fontSize:20,fontWeight:800,cursor:'pointer',boxShadow:'0 8px 30px rgba(0,0,0,0.2)'}}>🔄 Play Again</button>
-          <button onClick={onBack} style={{padding:'18px 40px',background:'rgba(255,255,255,0.25)',color:'#fff',border:'none',borderRadius:50,fontSize:20,fontWeight:700,cursor:'pointer'}}>🏠 Back</button>
+        <h2 style={{fontSize:34,fontWeight:900,color:'#d63031'}}>Journey Complete!</h2>
+        <p style={{fontSize:18,color:'#636e72',margin:'12px 0'}}>You visited all {STATIONS.length} stations!</p>
+
+        <div style={{display:'flex',gap:20,margin:'20px 0'}}>
+          <div style={{textAlign:'center'}}>
+            <div style={{fontSize:48}}>⭐</div>
+            <div style={{fontSize:32,fontWeight:900,color:'#f39c12'}}>{stars}</div>
+            <div style={{fontSize:12,color:'#888'}}>Stars</div>
+          </div>
+        </div>
+
+        <div style={{fontSize:28,fontWeight:900,color:'#e17055',margin:'10px 0'}}>+{ladoosEarned} Ladoos! 🍬</div>
+
+        <div style={{display:'flex',gap:16,marginTop:24}}>
+          <button onClick={restartGame} style={{padding:'16px 36px',background:'linear-gradient(135deg,#e17055,#d63031)',color:'#fff',border:'none',borderRadius:50,fontSize:18,fontWeight:800,cursor:'pointer',boxShadow:'0 8px 30px rgba(214,48,49,0.3)'}}>🔄 Play Again</button>
+          <button onClick={onBack} style={{padding:'16px 36px',background:'rgba(0,0,0,0.1)',color:'#636e72',border:'none',borderRadius:50,fontSize:18,fontWeight:700,cursor:'pointer'}}>🏠 Back</button>
         </div>
       </div>
     );
   }
 
-  // Calculate board layout (snaking path)
-  const getSquarePosition = (num) => {
-    const row = Math.floor((num - 1) / 6);
-    const col = row % 2 === 0 ? (num - 1) % 6 : 5 - ((num - 1) % 6);
-    return { row: 4 - row, col }; // Start from bottom
-  };
-
-  const DICE_FACES = ['⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
+  const currentStation = STATIONS[station];
 
   return (
-    <div style={{padding:16,minHeight:'100dvh',background:'linear-gradient(180deg,#87CEEB 0%,#98D8C8 50%,#F7DC6F 100%)',borderRadius:24,position:'relative'}}>
+    <div style={{padding:16,minHeight:'100dvh',background:'linear-gradient(180deg,#87CEEB 0%,#98FB98 70%,#8B4513 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+      {/* Sky with clouds */}
+      <div style={{position:'absolute',top:20,left:'10%',fontSize:45,opacity:0.6,animation:'drift 25s linear infinite'}}>☁️</div>
+      <div style={{position:'absolute',top:40,right:'5%',fontSize:35,opacity:0.5,animation:'drift 30s linear infinite',animationDelay:'-10s'}}>☁️</div>
+
       {/* Header */}
-      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:12}}>
-        <button onClick={onBack} style={{padding:'10px 18px',background:'#fff',borderRadius:50,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 2px 10px rgba(0,0,0,0.1)'}}>← Back</button>
-        <div style={{padding:'8px 16px',background:'linear-gradient(135deg,#FFD700,#FFA500)',borderRadius:50,fontWeight:800,color:'#fff',fontSize:16}}>🟡 {score}</div>
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16,position:'relative',zIndex:10}}>
+        <button onClick={onBack} style={{padding:'10px 18px',background:'rgba(255,255,255,0.95)',borderRadius:50,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>← Back</button>
+        <div style={{display:'flex',alignItems:'center',gap:8,background:'rgba(255,255,255,0.95)',padding:'8px 18px',borderRadius:50,boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
+          <span style={{fontSize:22}}>⭐</span>
+          <span style={{fontSize:18,fontWeight:900,color:'#f39c12'}}>{stars}</span>
+        </div>
       </div>
 
-      {/* Game info */}
-      <div style={{textAlign:'center',marginBottom:12}}>
-        <div style={{fontSize:13,color:'#666',fontWeight:600}}>Position: {position}/{BOARD_SIZE} • Moves: {moves}</div>
-      </div>
+      {/* Train track with stations */}
+      <div style={{position:'relative',margin:'20px 0 30px',padding:'0 10px'}}>
+        {/* Track */}
+        <div style={{position:'absolute',top:'50%',left:20,right:20,height:8,background:'linear-gradient(90deg,#8B4513,#A0522D)',borderRadius:4,transform:'translateY(-50%)'}}/>
+        <div style={{position:'absolute',top:'50%',left:20,right:20,height:4,background:'repeating-linear-gradient(90deg,#5D3A1A 0,#5D3A1A 20px,transparent 20px,transparent 30px)',transform:'translateY(-50%)'}}/>
 
-      {/* Message banner */}
-      {message && (
+        {/* Stations */}
+        <div style={{display:'flex',justifyContent:'space-between',position:'relative',zIndex:5}}>
+          {STATIONS.map((s, i) => (
+            <div key={i} style={{
+              width:50,height:50,
+              borderRadius:'50%',
+              background: i < station ? '#4CD964' : i === station ? currentStation.color : 'rgba(255,255,255,0.9)',
+              display:'flex',alignItems:'center',justifyContent:'center',
+              fontSize: i === station ? 28 : 22,
+              boxShadow: i === station ? `0 0 20px ${currentStation.color}` : '0 4px 15px rgba(0,0,0,0.15)',
+              border: i === station ? '4px solid #fff' : '3px solid rgba(255,255,255,0.5)',
+              transform: i === station ? 'scale(1.2)' : 'scale(1)',
+              transition:'all 0.3s ease',
+            }}>
+              {i < station ? '✅' : s.emoji}
+            </div>
+          ))}
+        </div>
+
+        {/* Train */}
         <div style={{
-          position:'absolute',top:'50%',left:'50%',transform:'translate(-50%, -50%)',
-          background:'rgba(0,0,0,0.85)',color:'#fff',padding:'20px 30px',borderRadius:20,
-          fontSize:18,fontWeight:700,zIndex:100,textAlign:'center',
-          animation:'scaleIn 0.3s ease',boxShadow:'0 10px 40px rgba(0,0,0,0.3)',
-          maxWidth:'80%'
+          position:'absolute',
+          bottom:-15,
+          left:`calc(${(station / (STATIONS.length - 1)) * 100}% - 25px)`,
+          fontSize:50,
+          transition:'left 0.8s ease',
+          filter:'drop-shadow(0 5px 10px rgba(0,0,0,0.3))',
+          animation:'bounce2 0.5s ease-in-out infinite',
+        }}>🚂</div>
+      </div>
+
+      {/* Current station info */}
+      <div style={{
+        background:'rgba(255,255,255,0.95)',
+        borderRadius:24,
+        padding:20,
+        margin:'30px auto 20px',
+        maxWidth:380,
+        boxShadow:'0 10px 40px rgba(0,0,0,0.1)',
+        textAlign:'center',
+        border:`4px solid ${currentStation.color}`,
+      }}>
+        <div style={{fontSize:48,marginBottom:8}}>{currentStation.emoji}</div>
+        <div style={{fontFamily:G,fontSize:28,fontWeight:900,color:'#2d3436'}}>{currentStation.name}</div>
+        <div style={{fontSize:20,fontWeight:700,color:currentStation.color,marginBottom:8}}>{currentStation.english}</div>
+        <div style={{fontSize:14,color:'#636e72',background:'rgba(0,0,0,0.05)',padding:'8px 16px',borderRadius:12,display:'inline-block'}}>💡 {currentStation.fact}</div>
+      </div>
+
+      {/* Question */}
+      {currentQ && (
+        <div style={{
+          background:showCelebrate ? 'linear-gradient(135deg,#4CD964,#2ecc71)' : wrongAnswer ? 'linear-gradient(135deg,#FF6B6B,#ee5a5a)' : 'rgba(255,255,255,0.95)',
+          borderRadius:24,
+          padding:24,
+          margin:'0 auto',
+          maxWidth:380,
+          boxShadow:'0 10px 40px rgba(0,0,0,0.1)',
+          transition:'background 0.3s',
         }}>
-          {showInfo && <div style={{fontSize:48,marginBottom:10}}>{showInfo.emoji}</div>}
-          {showInfo && <div style={{fontFamily:G,fontSize:28,marginBottom:6}}>{showInfo.name}</div>}
-          {message}
-          {showInfo && <div style={{fontSize:14,marginTop:10,opacity:0.8}}>{showInfo.desc}</div>}
+          {showCelebrate ? (
+            <div style={{textAlign:'center',padding:20}}>
+              <div style={{fontSize:60,marginBottom:10,animation:'bounce2 0.5s ease-in-out infinite'}}>🌟</div>
+              <div style={{fontSize:24,fontWeight:900,color:'#fff'}}>Correct! ⭐</div>
+              <div style={{fontSize:16,color:'rgba(255,255,255,0.9)',marginTop:8}}>Next station coming up!</div>
+            </div>
+          ) : (
+            <>
+              <div style={{textAlign:'center',marginBottom:20}}>
+                <div style={{fontSize:14,fontWeight:700,color:'#888',marginBottom:8}}>🎯 Find this letter to board the train!</div>
+                <div onClick={()=>say(currentQ.letter.g)} style={{
+                  display:'inline-flex',
+                  alignItems:'center',
+                  justifyContent:'center',
+                  width:100,height:100,
+                  background:'linear-gradient(135deg,#667eea,#764ba2)',
+                  borderRadius:'50%',
+                  cursor:'pointer',
+                  boxShadow:'0 8px 30px rgba(102,126,234,0.4)',
+                }}>
+                  <span style={{fontSize:50,color:'#fff'}}>🔊</span>
+                </div>
+              </div>
+
+              <div style={{display:'grid',gridTemplateColumns:'repeat(2, 1fr)',gap:12}}>
+                {currentQ.options.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleAnswer(opt)}
+                    style={{
+                      padding:20,
+                      background:wrongAnswer ? 'rgba(255,107,107,0.1)' : '#fff',
+                      border:'3px solid',
+                      borderColor:wrongAnswer ? '#FF6B6B' : '#E5E5EA',
+                      borderRadius:16,
+                      cursor:'pointer',
+                      transition:'all 0.2s',
+                      fontFamily:'inherit',
+                    }}
+                  >
+                    <div style={{fontFamily:G,fontSize:36,fontWeight:900,color:'#2d3436'}}>{opt.g}</div>
+                    <div style={{fontSize:13,color:'#888',marginTop:4}}>{opt.r}</div>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
+    </div>
+  );
+}
 
-      {/* Game Board */}
-      <div style={{
-        display:'grid',
-        gridTemplateColumns:'repeat(6, 1fr)',
-        gridTemplateRows:'repeat(5, 1fr)',
-        gap:4,
-        maxWidth:380,
-        margin:'0 auto 16px',
-        background:'linear-gradient(135deg,#8B4513,#A0522D)',
-        padding:8,
-        borderRadius:16,
-        boxShadow:'0 8px 30px rgba(0,0,0,0.2)',
-      }}>
-        {boardSquares.map((square, idx) => {
-          const pos = getSquarePosition(square.num);
-          const isCurrentPos = position === square.num;
-          const isPassed = position > square.num;
+// ═══════════════ LAKHPATI - Who Wants to be a Millionaire Style ═══════════════
+function LakhpatiGame({onBack, onScore}) {
+  const [level, setLevel] = useState(0);
+  const [score, setScore] = useState(0);
+  const [currentQ, setCurrentQ] = useState(null);
+  const [gameOver, setGameOver] = useState(false);
+  const [started, setStarted] = useState(false);
+  const [selectedAnswer, setSelectedAnswer] = useState(null);
+  const [showResult, setShowResult] = useState(false);
+  const [lifelines, setLifelines] = useState({ fifty: true, skip: true, hint: true });
+  const [hintShown, setHintShown] = useState(false);
 
-          return (
-            <div
-              key={idx}
+  const PRIZE_LADDER = [
+    { level: 1, prize: 10, emoji: '🥉' },
+    { level: 2, prize: 20, emoji: '🥉' },
+    { level: 3, prize: 50, emoji: '🥈' },
+    { level: 4, prize: 100, emoji: '🥈' },
+    { level: 5, prize: 200, emoji: '🥇' },
+    { level: 6, prize: 500, emoji: '🏆' },
+    { level: 7, prize: 1000, emoji: '💎' },
+  ];
+
+  const generateQuestion = useCallback(() => {
+    const letter = L[Math.floor(Math.random() * L.length)];
+    const wrongLetters = shuffle(L.filter(l => l.g !== letter.g)).slice(0, 3);
+    const options = shuffle([
+      { ...letter, correct: true },
+      ...wrongLetters.map(l => ({ ...l, correct: false }))
+    ]);
+
+    setCurrentQ({
+      letter,
+      options,
+      hint: `It sounds like "${letter.r}"`,
+    });
+    setSelectedAnswer(null);
+    setShowResult(false);
+    setHintShown(false);
+    setTimeout(() => say(letter.g), 500);
+  }, []);
+
+  useEffect(() => {
+    if (started && !gameOver && !currentQ) {
+      generateQuestion();
+    }
+  }, [started, gameOver, currentQ, generateQuestion]);
+
+  const handleAnswer = (opt, idx) => {
+    if (showResult || selectedAnswer !== null) return;
+    setSelectedAnswer(idx);
+
+    setTimeout(() => {
+      setShowResult(true);
+      if (opt.correct) {
+        playSuccess();
+        const newLevel = level + 1;
+        const prize = PRIZE_LADDER[level]?.prize || 0;
+        setScore(s => s + prize);
+        setLevel(newLevel);
+
+        setTimeout(() => {
+          if (newLevel >= PRIZE_LADDER.length) {
+            setGameOver(true);
+            onScore?.(score + prize);
+          } else {
+            setCurrentQ(null);
+          }
+        }, 1500);
+      } else {
+        setTimeout(() => {
+          setGameOver(true);
+          onScore?.(score);
+        }, 1500);
+      }
+    }, 1000);
+  };
+
+  const useFiftyFifty = () => {
+    if (!lifelines.fifty || !currentQ) return;
+    setLifelines(l => ({ ...l, fifty: false }));
+
+    const wrongOptions = currentQ.options.filter(o => !o.correct);
+    const toRemove = shuffle(wrongOptions).slice(0, 2);
+
+    setCurrentQ(q => ({
+      ...q,
+      options: q.options.map(o =>
+        toRemove.includes(o) ? { ...o, eliminated: true } : o
+      )
+    }));
+  };
+
+  const useSkip = () => {
+    if (!lifelines.skip) return;
+    setLifelines(l => ({ ...l, skip: false }));
+    setCurrentQ(null);
+  };
+
+  const useHint = () => {
+    if (!lifelines.hint || !currentQ) return;
+    setLifelines(l => ({ ...l, hint: false }));
+    setHintShown(true);
+  };
+
+  const restartGame = () => {
+    setLevel(0);
+    setScore(0);
+    setCurrentQ(null);
+    setGameOver(false);
+    setLifelines({ fifty: true, skip: true, hint: true });
+    setStarted(true);
+  };
+
+  // Start screen
+  if (!started && !gameOver) {
+    return (
+      <div style={{textAlign:'center',padding:30,minHeight:'100dvh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background:'linear-gradient(180deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+        {/* Sparkles */}
+        <div style={{position:'absolute',top:'10%',left:'15%',fontSize:30,animation:'sparkle 2s ease-in-out infinite'}}>✨</div>
+        <div style={{position:'absolute',top:'20%',right:'10%',fontSize:25,animation:'sparkle 2.5s ease-in-out infinite',animationDelay:'-0.5s'}}>⭐</div>
+        <div style={{position:'absolute',bottom:'30%',left:'10%',fontSize:28,animation:'sparkle 1.8s ease-in-out infinite',animationDelay:'-1s'}}>💫</div>
+
+        <div style={{fontSize:80,marginBottom:20,animation:'bounce2 1s ease-in-out infinite'}}>💎</div>
+        <h2 style={{fontFamily:G,fontSize:34,fontWeight:900,color:'#ffd700',marginBottom:8,textShadow:'0 0 20px rgba(255,215,0,0.5)'}}>ਲੱਖਪਤੀ</h2>
+        <h3 style={{fontSize:26,fontWeight:800,color:'#fff',marginBottom:16}}>Lakhpati!</h3>
+
+        <p style={{fontSize:16,color:'rgba(255,255,255,0.8)',margin:'16px 0',maxWidth:300,lineHeight:1.5}}>
+          Answer questions correctly to climb the prize ladder! 🏆
+        </p>
+
+        {/* Prize ladder preview */}
+        <div style={{display:'flex',flexDirection:'column',gap:6,margin:'20px 0',background:'rgba(255,255,255,0.1)',padding:16,borderRadius:16}}>
+          {PRIZE_LADDER.slice().reverse().map((p, i) => (
+            <div key={i} style={{
+              display:'flex',
+              alignItems:'center',
+              gap:10,
+              padding:'6px 16px',
+              background: i === PRIZE_LADDER.length - 1 ? 'rgba(255,215,0,0.3)' : 'transparent',
+              borderRadius:8,
+            }}>
+              <span style={{fontSize:18}}>{p.emoji}</span>
+              <span style={{color:'#ffd700',fontWeight:700,fontSize:14}}>Level {p.level}</span>
+              <span style={{color:'rgba(255,255,255,0.7)',fontSize:13,marginLeft:'auto'}}>🟡 {p.prize}</span>
+            </div>
+          ))}
+        </div>
+
+        <button onClick={()=>setStarted(true)} style={{
+          padding:'18px 45px',
+          background:'linear-gradient(135deg,#ffd700,#ffaa00)',
+          color:'#1a1a2e',
+          border:'none',
+          borderRadius:60,
+          fontSize:22,
+          fontWeight:900,
+          cursor:'pointer',
+          boxShadow:'0 10px 40px rgba(255,215,0,0.4)',
+          marginTop:16,
+        }}>
+          🎯 Start Game!
+        </button>
+        <button onClick={onBack} style={{marginTop:20,padding:'14px 28px',background:'rgba(255,255,255,0.1)',color:'#fff',border:'none',borderRadius:30,fontSize:18,cursor:'pointer'}}>← Back</button>
+      </div>
+    );
+  }
+
+  // Game over
+  if (gameOver) {
+    const won = level >= PRIZE_LADDER.length;
+    const ladoosEarned = Math.floor(score / 10);
+    return (
+      <div style={{textAlign:'center',padding:30,minHeight:'100dvh',display:'flex',flexDirection:'column',justifyContent:'center',alignItems:'center',background: won ? 'linear-gradient(180deg,#ffd700 0%,#ffaa00 50%,#ff8c00 100%)' : 'linear-gradient(180deg,#1a1a2e 0%,#16213e 100%)',borderRadius:24,position:'relative',overflow:'hidden'}}>
+        {won && (
+          <>
+            <div style={{position:'absolute',top:'10%',left:'10%',fontSize:50,animation:'bounce2 1s ease-in-out infinite'}}>🎉</div>
+            <div style={{position:'absolute',top:'15%',right:'10%',fontSize:45,animation:'bounce2 1.2s ease-in-out infinite'}}>🏆</div>
+            <div style={{position:'absolute',bottom:'20%',left:'15%',fontSize:40,animation:'bounce2 0.9s ease-in-out infinite'}}>💎</div>
+          </>
+        )}
+
+        <div style={{fontSize:100,marginBottom:20,animation:'bounce2 1s ease-in-out infinite'}}>{won ? '🏆' : '😊'}</div>
+        <h2 style={{fontSize:32,fontWeight:900,color:won ? '#1a1a2e' : '#ffd700'}}>{won ? 'You\'re a Lakhpati!' : 'Great Try!'}</h2>
+        <p style={{fontSize:18,color:won ? 'rgba(0,0,0,0.7)' : 'rgba(255,255,255,0.8)',margin:'12px 0'}}>You reached Level {level}!</p>
+
+        <div style={{fontSize:48,fontWeight:900,color:won ? '#1a1a2e' : '#ffd700',margin:'20px 0'}}>🟡 {score}</div>
+        <div style={{fontSize:22,color:won ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)',marginBottom:8,fontWeight:700}}>+{ladoosEarned} Ladoos! 🍬</div>
+
+        <div style={{display:'flex',gap:16,marginTop:24}}>
+          <button onClick={restartGame} style={{padding:'16px 36px',background:won ? '#1a1a2e' : 'linear-gradient(135deg,#ffd700,#ffaa00)',color:won ? '#ffd700' : '#1a1a2e',border:'none',borderRadius:50,fontSize:18,fontWeight:800,cursor:'pointer'}}>🔄 Play Again</button>
+          <button onClick={onBack} style={{padding:'16px 36px',background:'rgba(255,255,255,0.2)',color:won ? '#1a1a2e' : '#fff',border:'none',borderRadius:50,fontSize:18,fontWeight:700,cursor:'pointer'}}>🏠 Back</button>
+        </div>
+      </div>
+    );
+  }
+
+  const currentPrize = PRIZE_LADDER[level] || { prize: 0, emoji: '🎯' };
+
+  return (
+    <div style={{padding:16,minHeight:'100dvh',background:'linear-gradient(180deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)',borderRadius:24,position:'relative'}}>
+      {/* Header */}
+      <div style={{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:16}}>
+        <button onClick={onBack} style={{padding:'10px 18px',background:'rgba(255,255,255,0.1)',borderRadius:50,border:'none',fontSize:14,fontWeight:700,cursor:'pointer',color:'#fff'}}>← Back</button>
+        <div style={{display:'flex',alignItems:'center',gap:8,background:'linear-gradient(135deg,#ffd700,#ffaa00)',padding:'8px 18px',borderRadius:50}}>
+          <span style={{fontSize:16,fontWeight:900,color:'#1a1a2e'}}>🟡 {score}</span>
+        </div>
+      </div>
+
+      {/* Level indicator */}
+      <div style={{textAlign:'center',marginBottom:20}}>
+        <div style={{fontSize:16,color:'rgba(255,255,255,0.6)',marginBottom:4}}>Level {level + 1} of {PRIZE_LADDER.length}</div>
+        <div style={{fontSize:28,fontWeight:900,color:'#ffd700'}}>{currentPrize.emoji} For 🟡 {currentPrize.prize}</div>
+      </div>
+
+      {/* Prize ladder mini */}
+      <div style={{display:'flex',justifyContent:'center',gap:4,marginBottom:20}}>
+        {PRIZE_LADDER.map((p, i) => (
+          <div key={i} style={{
+            width:36,height:36,
+            borderRadius:'50%',
+            background: i < level ? '#4CD964' : i === level ? '#ffd700' : 'rgba(255,255,255,0.1)',
+            display:'flex',alignItems:'center',justifyContent:'center',
+            fontSize:16,
+            border: i === level ? '2px solid #fff' : 'none',
+            boxShadow: i === level ? '0 0 15px rgba(255,215,0,0.5)' : 'none',
+          }}>
+            {i < level ? '✓' : p.emoji}
+          </div>
+        ))}
+      </div>
+
+      {/* Question */}
+      {currentQ && (
+        <div style={{
+          background:'rgba(255,255,255,0.05)',
+          borderRadius:24,
+          padding:24,
+          margin:'0 auto',
+          maxWidth:400,
+          border:'2px solid rgba(255,215,0,0.3)',
+        }}>
+          <div style={{textAlign:'center',marginBottom:24}}>
+            <div style={{fontSize:14,fontWeight:700,color:'rgba(255,255,255,0.6)',marginBottom:12}}>🔊 Tap to hear the letter:</div>
+            <div onClick={()=>say(currentQ.letter.g)} style={{
+              display:'inline-flex',
+              alignItems:'center',
+              justifyContent:'center',
+              width:100,height:100,
+              background:'linear-gradient(135deg,#ffd700,#ffaa00)',
+              borderRadius:'50%',
+              cursor:'pointer',
+              boxShadow:'0 0 30px rgba(255,215,0,0.4)',
+            }}>
+              <span style={{fontSize:50}}>🔊</span>
+            </div>
+            {hintShown && (
+              <div style={{marginTop:16,padding:'10px 20px',background:'rgba(255,215,0,0.2)',borderRadius:12,color:'#ffd700',fontSize:14}}>
+                💡 Hint: {currentQ.hint}
+              </div>
+            )}
+          </div>
+
+          {/* Options */}
+          <div style={{display:'grid',gridTemplateColumns:'repeat(2, 1fr)',gap:12}}>
+            {currentQ.options.map((opt, i) => {
+              const isSelected = selectedAnswer === i;
+              const isCorrect = opt.correct;
+              const showCorrect = showResult && isCorrect;
+              const showWrong = showResult && isSelected && !isCorrect;
+              const isEliminated = opt.eliminated;
+
+              return (
+                <button
+                  key={i}
+                  onClick={() => !isEliminated && handleAnswer(opt, i)}
+                  disabled={isEliminated}
+                  style={{
+                    padding:18,
+                    background: showCorrect ? '#4CD964' : showWrong ? '#FF3B30' : isSelected ? '#ffd700' : isEliminated ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.1)',
+                    border:'2px solid',
+                    borderColor: showCorrect ? '#4CD964' : showWrong ? '#FF3B30' : isSelected ? '#ffd700' : isEliminated ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.2)',
+                    borderRadius:16,
+                    cursor: isEliminated ? 'not-allowed' : 'pointer',
+                    opacity: isEliminated ? 0.3 : 1,
+                    transition:'all 0.3s',
+                    fontFamily:'inherit',
+                  }}
+                >
+                  <div style={{fontFamily:G,fontSize:32,fontWeight:900,color: isSelected || showCorrect || showWrong ? '#fff' : '#ffd700'}}>{opt.g}</div>
+                  <div style={{fontSize:12,color:'rgba(255,255,255,0.7)',marginTop:4}}>{opt.r}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Lifelines */}
+          <div style={{display:'flex',justifyContent:'center',gap:12,marginTop:24}}>
+            <button
+              onClick={useFiftyFifty}
+              disabled={!lifelines.fifty || showResult}
               style={{
-                gridRow: pos.row + 1,
-                gridColumn: pos.col + 1,
-                aspectRatio:'1',
-                background: square.type === 'landmark' ? `linear-gradient(135deg,${square.color},${square.color}CC)` :
-                           square.type === 'setback' ? `linear-gradient(135deg,${square.color},${square.color}CC)` :
-                           isPassed ? 'rgba(52,199,89,0.3)' : 'rgba(255,255,255,0.95)',
-                borderRadius:8,
-                display:'flex',
-                flexDirection:'column',
-                alignItems:'center',
-                justifyContent:'center',
-                position:'relative',
-                border: isCurrentPos ? '3px solid #FF2D55' : '2px solid rgba(0,0,0,0.1)',
-                boxShadow: isCurrentPos ? '0 0 20px rgba(255,45,85,0.5)' : 'none',
-                transform: isCurrentPos ? 'scale(1.1)' : 'scale(1)',
-                transition:'all 0.3s ease',
-                zIndex: isCurrentPos ? 10 : 1,
+                padding:'10px 16px',
+                background: lifelines.fifty ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.05)',
+                border:'1px solid rgba(255,215,0,0.3)',
+                borderRadius:12,
+                cursor: lifelines.fifty ? 'pointer' : 'not-allowed',
+                opacity: lifelines.fifty ? 1 : 0.4,
+                color:'#ffd700',
+                fontSize:13,
+                fontWeight:700,
               }}
             >
-              {/* Square number */}
-              <div style={{position:'absolute',top:2,left:4,fontSize:8,fontWeight:700,color:'rgba(0,0,0,0.4)'}}>{square.num}</div>
-
-              {/* Content */}
-              {square.type === 'landmark' || square.type === 'setback' ? (
-                <div style={{fontSize:20}}>{square.emoji}</div>
-              ) : (
-                <div style={{fontFamily:G,fontSize:18,fontWeight:900,color:'#333'}}>{square.letter?.g}</div>
-              )}
-
-              {/* Player token */}
-              {isCurrentPos && (
-                <div style={{
-                  position:'absolute',
-                  width:28,height:28,
-                  background:'linear-gradient(135deg,#FF2D55,#FF6B6B)',
-                  borderRadius:'50%',
-                  display:'flex',alignItems:'center',justifyContent:'center',
-                  fontSize:16,
-                  boxShadow:'0 4px 15px rgba(255,45,85,0.5)',
-                  animation:'bounce2 0.5s ease-in-out infinite',
-                  zIndex:20,
-                }}>👳</div>
-              )}
-
-              {/* Start/End markers */}
-              {square.num === 1 && !isCurrentPos && <div style={{fontSize:10,marginTop:2}}>🏁</div>}
-              {square.num === BOARD_SIZE && <div style={{fontSize:14}}>🏆</div>}
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Legend */}
-      <div style={{display:'flex',justifyContent:'center',gap:12,marginBottom:16,flexWrap:'wrap'}}>
-        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#666'}}>
-          <span style={{width:16,height:16,background:'linear-gradient(135deg,#FFD700,#FFA500)',borderRadius:4}}/>🛕 Bonus
+              50:50
+            </button>
+            <button
+              onClick={useHint}
+              disabled={!lifelines.hint || showResult}
+              style={{
+                padding:'10px 16px',
+                background: lifelines.hint ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.05)',
+                border:'1px solid rgba(255,215,0,0.3)',
+                borderRadius:12,
+                cursor: lifelines.hint ? 'pointer' : 'not-allowed',
+                opacity: lifelines.hint ? 1 : 0.4,
+                color:'#ffd700',
+                fontSize:13,
+                fontWeight:700,
+              }}
+            >
+              💡 Hint
+            </button>
+            <button
+              onClick={useSkip}
+              disabled={!lifelines.skip || showResult}
+              style={{
+                padding:'10px 16px',
+                background: lifelines.skip ? 'rgba(255,215,0,0.2)' : 'rgba(255,255,255,0.05)',
+                border:'1px solid rgba(255,215,0,0.3)',
+                borderRadius:12,
+                cursor: lifelines.skip ? 'pointer' : 'not-allowed',
+                opacity: lifelines.skip ? 1 : 0.4,
+                color:'#ffd700',
+                fontSize:13,
+                fontWeight:700,
+              }}
+            >
+              ⏭️ Skip
+            </button>
+          </div>
         </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#666'}}>
-          <span style={{width:16,height:16,background:'linear-gradient(135deg,#8E8E93,#636e72)',borderRadius:4}}/>😅 Setback
-        </div>
-        <div style={{display:'flex',alignItems:'center',gap:4,fontSize:11,color:'#666'}}>
-          <span style={{width:16,height:16,background:'#fff',borderRadius:4,border:'1px solid #ddd'}}/>ੳ Letter
-        </div>
-      </div>
-
-      {/* Dice area */}
-      <div style={{textAlign:'center'}}>
-        <div
-          onClick={rollDice}
-          style={{
-            display:'inline-flex',
-            alignItems:'center',
-            justifyContent:'center',
-            width:90,height:90,
-            background: isRolling ? 'linear-gradient(135deg,#FFD700,#FFA500)' : 'linear-gradient(135deg,#fff,#f0f0f0)',
-            borderRadius:20,
-            fontSize:60,
-            cursor: isRolling ? 'default' : 'pointer',
-            boxShadow:'0 8px 30px rgba(0,0,0,0.15)',
-            border:'4px solid #FF9500',
-            transform: isRolling ? 'rotate(360deg)' : 'rotate(0deg)',
-            transition: isRolling ? 'transform 0.1s linear' : 'transform 0.3s ease',
-            animation: isRolling ? 'spin 0.2s linear infinite' : 'none',
-          }}
-        >
-          {diceValue ? DICE_FACES[diceValue - 1] : '🎲'}
-        </div>
-        <div style={{marginTop:12,fontSize:16,fontWeight:700,color:'#FF6B35'}}>
-          {isRolling ? 'Rolling...' : position === 0 ? '👆 Tap to start!' : '👆 Tap to roll!'}
-        </div>
-        {diceValue && !isRolling && <div style={{fontSize:14,color:'#666',marginTop:4}}>You rolled: {diceValue}</div>}
-      </div>
-
-      {/* Spin animation */}
-      <style>{`
-        @keyframes spin {
-          from { transform: rotate(0deg); }
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
+      )}
     </div>
   );
 }
@@ -2646,8 +2949,8 @@ function GamesHub({onBack, onSelectGame, ladoos}) {
     { id: 'rain', name: 'Feed the Frog', icon: '🐸', color: '#4CD964', desc: 'Tap letters to feed the hungry frog!' },
     { id: 'memory', name: 'Memory Match', icon: '🧠', color: '#AF52DE', desc: 'Find matching letter pairs!' },
     { id: 'speed', name: 'Speed Quiz', icon: '⚡', color: '#FF2D55', desc: 'Quick! Pick the right sound!' },
-    { id: 'yatra', name: 'Punjab Yatra', icon: '🎲', color: '#FF9500', desc: 'Board game through Punjab!' },
-    { id: 'speed', name: 'Speed Quiz', icon: '⚡', color: '#FF2D55', desc: 'Quick! Pick the right sound!' },
+    { id: 'yatra', name: 'Punjab Express', icon: '🚂', color: '#e17055', desc: 'Train journey through Punjab!' },
+    { id: 'lakhpati', name: 'Lakhpati', icon: '💎', color: '#1a1a2e', desc: 'Who wants to be a Lakhpati?' },
   ];
 
   return (
@@ -3304,6 +3607,13 @@ export default function Gurmukhi() {
       setProgress(p=>({...p,ladoos:(p.ladoos||0)+ladoos}));
     }}/>}
     {screen==='games'&&currentGame==='yatra'&&<PunjabYatraGame onBack={()=>setCurrentGame(null)} onScore={async(s)=>{
+      const ladoos = Math.floor(s/10);
+      if(ladoos > 0 && auth.currentUser) {
+        try { await fbAddLadoos(auth.currentUser.uid, ladoos); } catch(e) { console.error(e); }
+      }
+      setProgress(p=>({...p,ladoos:(p.ladoos||0)+ladoos}));
+    }}/>}
+    {screen==='games'&&currentGame==='lakhpati'&&<LakhpatiGame onBack={()=>setCurrentGame(null)} onScore={async(s)=>{
       const ladoos = Math.floor(s/10);
       if(ladoos > 0 && auth.currentUser) {
         try { await fbAddLadoos(auth.currentUser.uid, ladoos); } catch(e) { console.error(e); }
