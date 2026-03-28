@@ -1094,6 +1094,7 @@ function BalloonPopGame({onBack, onScore}) {
   const [targetIdx, setTargetIdx] = useState(() => Math.floor(Math.random() * L.length));
   const [score, setScore] = useState(0);
   const [lives, setLives] = useState(5);
+  const [timeLeft, setTimeLeft] = useState(60); // 60 second timer
   const [gameOver, setGameOver] = useState(false);
   const [combo, setCombo] = useState(0);
   const [started, setStarted] = useState(false);
@@ -1253,12 +1254,30 @@ function BalloonPopGame({onBack, onScore}) {
     return () => clearInterval(animate);
   }, [gameOver, started]);
 
+  // Countdown timer
   useEffect(() => {
-    if (lives <= 0 && !gameOver) {
+    if (!started || gameOver) return;
+    const timer = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [started, gameOver]);
+
+  // Game over when lives or time runs out
+  useEffect(() => {
+    if ((lives <= 0 || timeLeft <= 0) && !gameOver && started) {
       setGameOver(true);
-      onScore?.(scoreRef.current);
+      // Bonus for time left
+      const timeBonus = timeLeft * 2;
+      onScore?.(scoreRef.current + timeBonus);
     }
-  }, [lives, gameOver, onScore]);
+  }, [lives, timeLeft, gameOver, started, onScore]);
 
   const popBalloon = (balloon, e) => {
     if (gameOver) return;
@@ -1324,13 +1343,12 @@ function BalloonPopGame({onBack, onScore}) {
   const restartGame = () => {
     setScore(0);
     setLives(5);
+    setTimeLeft(60);
     setGameOver(false);
     setCombo(0);
     setBalloons([]);
     setPopEffects([]);
     setConfetti([]);
-    setElapsedTime(0);
-    activeLettersRef.current.clear();
     balloonIdRef.current = 0;
     setStarted(true);
     pickNewTarget();
@@ -1406,10 +1424,13 @@ function BalloonPopGame({onBack, onScore}) {
         <div style={{position:'absolute',bottom:14,left:'85%',fontSize:22}}>🌷</div>
       </div>
 
-      {/* HUD - Lives and Score */}
+      {/* HUD - Lives, Timer, and Score */}
       <div style={{position:'absolute',top:12,left:12,right:12,display:'flex',justifyContent:'space-between',alignItems:'center',zIndex:10}}>
         <div style={{display:'flex',gap:4,background:'rgba(255,255,255,0.9)',padding:'8px 14px',borderRadius:30,boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
           {[0,1,2,3,4].map(i => <span key={i} style={{fontSize:24,opacity:i<lives?1:0.2,transition:'all 0.3s',transform:i<lives?'scale(1)':'scale(0.8)'}}>{i<lives?'❤️':'🖤'}</span>)}
+        </div>
+        <div style={{padding:'10px 20px',background:timeLeft<=10?'linear-gradient(135deg,#FF6B6B,#EE5A5A)':'linear-gradient(135deg,#74b9ff,#0984e3)',borderRadius:50,fontWeight:900,fontSize:20,boxShadow:'0 4px 15px rgba(0,0,0,0.15)',color:'#fff',animation:timeLeft<=10?'pulse2 0.5s ease-in-out infinite':'none'}}>
+          ⏱️ {timeLeft}s
         </div>
         <div style={{padding:'10px 22px',background:'linear-gradient(135deg,#FFEAA7,#FDCB6E)',borderRadius:50,fontWeight:900,fontSize:22,boxShadow:'0 6px 20px rgba(253,203,110,0.4)',color:'#333'}}>🟡 {score}</div>
       </div>
@@ -1548,6 +1569,7 @@ function LetterRainGame({onBack, onScore}) {
   const [targetIdx, setTargetIdx] = useState(() => Math.floor(Math.random() * L.length));
   const [score, setScore] = useState(0);
   const [fed, setFed] = useState(0);
+  const [timeLeft, setTimeLeft] = useState(45); // 45 second timer
   const [gameOver, setGameOver] = useState(false);
   const [started, setStarted] = useState(false);
   const [effects, setEffects] = useState([]);
@@ -1672,17 +1694,34 @@ function LetterRainGame({onBack, onScore}) {
     return () => clearInterval(animate);
   }, [gameOver, started]);
 
+  // Countdown timer
+  useEffect(() => {
+    if (!started || gameOver) return;
+    const timer = setInterval(() => {
+      setTimeLeft(t => {
+        if (t <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [started, gameOver]);
+
   // Win/lose conditions
   useEffect(() => {
     if (fed >= GOAL && !gameOver) {
       setGameOver(true);
-      onScore?.(scoreRef.current + 50);
+      // Bonus for time left
+      const timeBonus = timeLeft * 3;
+      onScore?.(scoreRef.current + 50 + timeBonus);
     }
-    if (lives <= 0 && !gameOver) {
+    if ((lives <= 0 || timeLeft <= 0) && !gameOver && started) {
       setGameOver(true);
       onScore?.(scoreRef.current);
     }
-  }, [fed, lives, gameOver, onScore]);
+  }, [fed, lives, timeLeft, gameOver, started, onScore]);
 
   const tapLetter = (letter, e) => {
     if (gameOver || letter.popping) return;
@@ -1735,6 +1774,7 @@ function LetterRainGame({onBack, onScore}) {
     setScore(0);
     setFed(0);
     setLives(5);
+    setTimeLeft(45);
     setGameOver(false);
     setLetters([]);
     setEffects([]);
@@ -1830,6 +1870,9 @@ function LetterRainGame({onBack, onScore}) {
       <div style={{position:'absolute',top:12,left:12,right:12,display:'flex',justifyContent:'space-between',alignItems:'center',zIndex:10}}>
         <div style={{display:'flex',gap:4,background:'rgba(255,255,255,0.95)',padding:'8px 14px',borderRadius:30,boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
           {[0,1,2,3,4].map(i => <span key={i} style={{fontSize:22,opacity:i<lives?1:0.2}}>{i<lives?'❤️':'🖤'}</span>)}
+        </div>
+        <div style={{padding:'8px 16px',background:timeLeft<=10?'linear-gradient(135deg,#FF6B6B,#EE5A5A)':'linear-gradient(135deg,#00b894,#00a085)',borderRadius:50,fontWeight:900,fontSize:18,boxShadow:'0 4px 15px rgba(0,0,0,0.15)',color:'#fff',animation:timeLeft<=10?'pulse2 0.5s ease-in-out infinite':'none'}}>
+          ⏱️ {timeLeft}s
         </div>
         <div style={{padding:'10px 20px',background:'rgba(255,255,255,0.95)',borderRadius:50,fontWeight:900,fontSize:18,boxShadow:'0 4px 15px rgba(0,0,0,0.1)',color:'#00b894'}}>🟡 {score}</div>
       </div>
@@ -2244,7 +2287,7 @@ function SpeedQuizGame({onBack, onScore}) {
 function GamesHub({onBack, onSelectGame, ladoos}) {
   const games = [
     { id: 'balloon', name: 'Balloon Pop', icon: '🎈', color: '#FF6B6B', desc: 'Pop balloons with the right letters!' },
-    { id: 'rain', name: 'Letter Rain', icon: '🌧️', color: '#5AC8FA', desc: 'Catch falling letters in your bucket!' },
+    { id: 'rain', name: 'Feed the Frog', icon: '🐸', color: '#4CD964', desc: 'Tap letters to feed the hungry frog!' },
     { id: 'memory', name: 'Memory Match', icon: '🧠', color: '#AF52DE', desc: 'Find matching letter pairs!' },
     { id: 'speed', name: 'Speed Quiz', icon: '⚡', color: '#FF2D55', desc: 'Quick! Pick the right sound!' },
   ];
@@ -2363,6 +2406,8 @@ export default function Gurmukhi() {
   const [showInvite,setShowInvite]=useState(false);
   const [showLeaderboard,setShowLeaderboard]=useState(false);
   const [copied,setCopied]=useState(false);
+  const [inviteEmail,setInviteEmail]=useState('');
+  const [emailSent,setEmailSent]=useState(false);
   const inviteUrl=typeof window!=='undefined'?window.location.origin:'https://gurmukhi.app';
   const inviteMsg=`🎉 Join me learning Punjabi on ਗੁਰਮੁਖੀ! It's fun and free. Start here: ${inviteUrl}`;
 
@@ -2370,7 +2415,10 @@ export default function Gurmukhi() {
     if(navigator.share){
       try{
         await navigator.share({title:'Learn Punjabi with me!',text:inviteMsg,url:inviteUrl});
-      }catch(e){}
+      }catch(e){
+        // Fallback to modal if share fails
+        setShowInvite(true);
+      }
     }else{
       setShowInvite(true);
     }
@@ -2379,6 +2427,12 @@ export default function Gurmukhi() {
     navigator.clipboard.writeText(inviteMsg);
     setCopied(true);
     setTimeout(()=>setCopied(false),2000);
+  };
+  const sendEmailInvite=()=>{
+    if(!inviteEmail.trim()||!inviteEmail.includes('@'))return;
+    window.location.href=`mailto:${inviteEmail}?subject=${encodeURIComponent('Learn Punjabi with me!')}&body=${encodeURIComponent(inviteMsg)}`;
+    setEmailSent(true);
+    setTimeout(()=>{setEmailSent(false);setInviteEmail('')},2000);
   };
 
   // ═══════ Sidebar ═══════
@@ -2418,30 +2472,49 @@ export default function Gurmukhi() {
 
         {/* Share buttons grid */}
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:20}}>
-          <a href={`https://wa.me/?text=${encodeURIComponent(inviteMsg)}`} target="_blank" rel="noopener" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#25D366',borderRadius:20,textDecoration:'none',transition:'transform .2s'}}>
+          <a href={`https://wa.me/?text=${encodeURIComponent(inviteMsg)}`} target="_blank" rel="noopener noreferrer" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#25D366',borderRadius:20,textDecoration:'none',transition:'transform .2s',cursor:'pointer'}} onClick={(e)=>{e.stopPropagation()}}>
             <span style={{fontSize:28}}>💬</span>
             <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>WhatsApp</span>
           </a>
-          <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteUrl)}&quote=${encodeURIComponent(inviteMsg)}`} target="_blank" rel="noopener" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#1877F2',borderRadius:20,textDecoration:'none',transition:'transform .2s'}}>
+          <a href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(inviteUrl)}&quote=${encodeURIComponent(inviteMsg)}`} target="_blank" rel="noopener noreferrer" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#1877F2',borderRadius:20,textDecoration:'none',transition:'transform .2s',cursor:'pointer'}} onClick={(e)=>{e.stopPropagation()}}>
             <span style={{fontSize:28}}>📘</span>
             <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>Facebook</span>
           </a>
-          <a href={`https://line.me/R/msg/text/?${encodeURIComponent(inviteMsg)}`} target="_blank" rel="noopener" style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#00B900',borderRadius:20,textDecoration:'none',transition:'transform .2s'}}>
-            <span style={{fontSize:28}}>💚</span>
-            <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>Line</span>
+          <a href={`https://www.instagram.com/`} target="_blank" rel="noopener noreferrer" onClick={(e)=>{e.stopPropagation();navigator.clipboard.writeText(inviteMsg);setCopied(true);setTimeout(()=>setCopied(false),2000)}} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'linear-gradient(135deg,#833AB4,#E1306C,#F77737)',borderRadius:20,textDecoration:'none',transition:'transform .2s',cursor:'pointer'}}>
+            <span style={{fontSize:28}}>📸</span>
+            <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>Instagram</span>
           </a>
-          <a href={`mailto:?subject=${encodeURIComponent('Learn Punjabi with me!')}&body=${encodeURIComponent(inviteMsg)}`} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#EA4335',borderRadius:20,textDecoration:'none',transition:'transform .2s'}}>
-            <span style={{fontSize:28}}>📧</span>
-            <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>Email</span>
+          <a href={`sms:?body=${encodeURIComponent(inviteMsg)}`} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,padding:16,background:'#34C759',borderRadius:20,textDecoration:'none',transition:'transform .2s',cursor:'pointer'}} onClick={(e)=>{e.stopPropagation()}}>
+            <span style={{fontSize:28}}>💬</span>
+            <span style={{fontSize:11,fontWeight:700,color:'#fff'}}>SMS</span>
           </a>
+        </div>
+
+        {/* Email input section */}
+        <div style={{background:'#F2F2F7',borderRadius:20,padding:16,marginBottom:16}}>
+          <div style={{fontSize:12,fontWeight:700,color:'#8E8E93',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>📧 Send email invite</div>
+          <div style={{display:'flex',gap:10}}>
+            <input
+              type="email"
+              placeholder="friend@email.com"
+              value={inviteEmail}
+              onChange={(e)=>setInviteEmail(e.target.value)}
+              onKeyDown={(e)=>e.key==='Enter'&&sendEmailInvite()}
+              style={{flex:1,background:'#fff',borderRadius:12,padding:'12px 14px',fontSize:14,color:'#333',border:'2px solid #E5E5EA',outline:'none',fontFamily:'inherit'}}
+              onClick={(e)=>e.stopPropagation()}
+            />
+            <button onClick={(e)=>{e.stopPropagation();sendEmailInvite()}} style={{padding:'12px 20px',background:emailSent?'#34C759':'linear-gradient(135deg,#EA4335,#FF6B6B)',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',minWidth:80}}>
+              {emailSent?'✓ Sent':'Send'}
+            </button>
+          </div>
         </div>
 
         {/* Copy link section */}
         <div style={{background:'#F2F2F7',borderRadius:20,padding:16,marginBottom:16}}>
-          <div style={{fontSize:12,fontWeight:700,color:'#8E8E93',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>Or copy link</div>
+          <div style={{fontSize:12,fontWeight:700,color:'#8E8E93',marginBottom:8,textTransform:'uppercase',letterSpacing:1}}>🔗 Copy link to share</div>
           <div style={{display:'flex',gap:10}}>
             <div style={{flex:1,background:'#fff',borderRadius:12,padding:'12px 14px',fontSize:13,color:'#666',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',border:'2px solid #E5E5EA'}}>{inviteUrl}</div>
-            <button onClick={copyInvite} style={{padding:'12px 20px',background:copied?'#34C759':'linear-gradient(135deg,#FF9500,#FF6B35)',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',minWidth:80}}>
+            <button onClick={(e)=>{e.stopPropagation();copyInvite()}} style={{padding:'12px 20px',background:copied?'#34C759':'linear-gradient(135deg,#FF9500,#FF6B35)',color:'#fff',border:'none',borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',fontFamily:'inherit',minWidth:80}}>
               {copied?'✓ Copied':'Copy'}
             </button>
           </div>
