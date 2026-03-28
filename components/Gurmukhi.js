@@ -252,7 +252,8 @@ const say = (text) => {
   }
 
   // Use our API route which proxies Google Translate TTS (has authentic Punjabi)
-  const audioUrl = `/api/speak?text=${encodeURIComponent(text)}`;
+  // Add timestamp to prevent browser caching issues
+  const audioUrl = `/api/speak?text=${encodeURIComponent(text)}&t=${Date.now()}`;
 
   currentAudio = new Audio(audioUrl);
   currentAudio.volume = 1.0;
